@@ -15,8 +15,8 @@ const DEFAULT_CONFIG: OctivConfig = {
   },
   advanceBookingDays: 4,
   slots: [],
-  retryIntervalMs: 500,
-  maxRetries: 20,
+  retryIntervalMs: 100,
+  maxRetries: 120,
 };
 
 export async function loadConfig(): Promise<OctivConfig> {

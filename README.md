@@ -13,7 +13,7 @@ Les cours populaires se remplissent en quelques minutes apres l'ouverture des re
 OctivSniper surveille tes creneaux configures et lance les reservations automatiquement avec :
 - **Anticipation 30s** — commence les tentatives avant l'ouverture theorique
 - **Pre-fetch** — recupere l'ID du cours 2 minutes avant pour ne pas perdre de temps
-- **Retry agressif** — toutes les 500ms, jusqu'a 20 tentatives
+- **Spam agressif** — pas de delai sur "too early", fire la requete en boucle (~100ms x120 tentatives)
 - **Reschedule auto** — apres chaque booking, programme la semaine suivante
 - **Refresh token** — renouvelle automatiquement le JWT avant expiration
 
@@ -102,16 +102,16 @@ Le fichier `config.json` (cree automatiquement, gitignore) :
   "slots": [
     { "day": "monday", "time": "07:00", "className": "WOD" }
   ],
-  "retryIntervalMs": 500,
-  "maxRetries": 20
+  "retryIntervalMs": 100,
+  "maxRetries": 120
 }
 ```
 
 | Parametre | Description | Default |
 |-----------|-------------|---------|
 | `advanceBookingDays` | Jours d'avance pour l'ouverture | `4` |
-| `retryIntervalMs` | Intervalle entre les tentatives (ms) | `500` |
-| `maxRetries` | Nombre max de tentatives | `20` |
+| `retryIntervalMs` | Intervalle entre les tentatives (ms) | `100` |
+| `maxRetries` | Nombre max de tentatives | `120` |
 
 ## Stack
 

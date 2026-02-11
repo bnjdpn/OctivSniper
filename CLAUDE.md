@@ -85,8 +85,8 @@ Required headers: `Authorization: Bearer <JWT>`, `X-CamelCase: true`, `Accept: a
   "auth": { "email", "jwt", "refreshToken", "expiresAt", "userId", "tenantId", "locationId" },
   "advanceBookingDays": 4,
   "slots": [{ "day": "monday", "time": "07:00", "className": "WOD" }],
-  "retryIntervalMs": 500,
-  "maxRetries": 20
+  "retryIntervalMs": 100,
+  "maxRetries": 120
 }
 ```
 
@@ -95,6 +95,8 @@ Required headers: `Authorization: Bearer <JWT>`, `X-CamelCase: true`, `Accept: a
 - JWT expires in ~1 year (`expiresIn: 31536000`)
 - `refreshToken` + `expiresAt` stored in config
 - Scheduler auto-refreshes 7 days before expiry via `/oauth/token` (Laravel Passport)
+- "Too early" errors: no delay, spam immediately
+- Full class: keeps retrying (slower) in case of cancellation
 - Interactive mode tries refresh before prompting re-login
 
 ## Booking logic

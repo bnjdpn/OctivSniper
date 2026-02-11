@@ -134,25 +134,30 @@ async function attemptBooking(
         continue;
       }
 
-      const booked = classInfo.bookings?.length ?? 0;
-      if (booked >= classInfo.limit) {
-        log(`Attempt ${attempt}/${config.maxRetries}: Class is full (${booked}/${classInfo.limit})!`);
-        return false;
-      }
-
+      // Don't check bookings count — just fire the booking request immediately.
+      // The server is the source of truth; checking locally wastes time.
       log(`Attempt ${attempt}/${config.maxRetries}: Booking class ${classInfo.id}...`);
       const result = await bookClass(config.auth.jwt, classInfo.id, config.auth.userId);
       log(`SUCCESS! Booked ${slot.className} ${slot.day} ${slot.time} (booking id=${result.id})`);
       return true;
     } catch (err: any) {
       const msg = err?.message || String(err);
-      if (msg.includes("advance") || msg.includes("early") || msg.includes("not yet") || msg.includes("far")) {
-        log(`Attempt ${attempt}/${config.maxRetries}: Too early, retrying in ${config.retryIntervalMs}ms...`);
+      const isTooEarly = msg.includes("advance") || msg.includes("early") || msg.includes("not yet") || msg.includes("far");
+
+      if (isTooEarly) {
+        // Too early — spam immediately, no delay
+        if (attempt % 20 === 0) {
+          log(`Attempt ${attempt}/${config.maxRetries}: Still too early...`);
+        }
+      } else if (msg.includes("full") || msg.includes("limit") || msg.includes("complet")) {
+        log(`Attempt ${attempt}/${config.maxRetries}: Full — ${msg}`);
+        // Keep retrying in case someone cancels, but slightly slower
+        await Bun.sleep(config.retryIntervalMs * 5);
       } else {
-        log(`Attempt ${attempt}/${config.maxRetries}: Error - ${msg}`);
+        log(`Attempt ${attempt}/${config.maxRetries}: Error — ${msg}`);
+        await Bun.sleep(config.retryIntervalMs);
       }
       prefetchedClass = undefined;
-      await Bun.sleep(config.retryIntervalMs);
     }
   }
 
