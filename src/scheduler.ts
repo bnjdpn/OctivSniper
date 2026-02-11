@@ -139,8 +139,7 @@ async function attemptBooking(
 
       // Don't check bookings count — just fire the booking request immediately.
       // The server is the source of truth; checking locally wastes time.
-      realAttempts++;
-      log(`Attempt ${realAttempts}/${config.maxRetries}: Booking class ${classInfo.id}...`);
+      log(`Booking class ${classInfo.id}...`);
       const result = await bookClass(config.auth.jwt, classInfo.id, config.auth.userId);
       log(`SUCCESS! Booked ${slot.className} ${slot.day} ${slot.time} (booking id=${result.id})`);
       return true;
