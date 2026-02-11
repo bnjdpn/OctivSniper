@@ -149,6 +149,7 @@ async function attemptBooking(
 
       if (isTooEarly) {
         // Too early — does NOT count against maxRetries, spam immediately
+        // Keep prefetchedClass — classId doesn't change, skip the extra GET
         earlyAttempts++;
         if (earlyAttempts % 50 === 0) {
           log(`Waiting for window to open... (${earlyAttempts} early attempts)`);
@@ -156,14 +157,15 @@ async function attemptBooking(
       } else if (msg.includes("full") || msg.includes("limit") || msg.includes("complet")) {
         realAttempts++;
         log(`Attempt ${realAttempts}/${config.maxRetries}: Full — ${msg}`);
+        prefetchedClass = undefined;
         // Keep retrying in case someone cancels, but slightly slower
         await Bun.sleep(config.retryIntervalMs * 5);
       } else {
         realAttempts++;
         log(`Attempt ${realAttempts}/${config.maxRetries}: Error — ${msg}`);
+        prefetchedClass = undefined;
         await Bun.sleep(config.retryIntervalMs);
       }
-      prefetchedClass = undefined;
     }
   }
 
