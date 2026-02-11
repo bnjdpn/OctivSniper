@@ -114,8 +114,10 @@ async function attemptBooking(
   prefetchedClass?: ClassDate
 ): Promise<boolean> {
   const dateStr = targetDate.toISOString().split("T")[0];
+  let realAttempts = 0; // only counts once window is open
+  let earlyAttempts = 0;
 
-  for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
+  while (realAttempts < config.maxRetries) {
     try {
       let classInfo = prefetchedClass;
       if (!classInfo) {
@@ -129,14 +131,16 @@ async function attemptBooking(
       }
 
       if (!classInfo) {
-        log(`Attempt ${attempt}/${config.maxRetries}: Class not found, retrying...`);
+        realAttempts++;
+        log(`Attempt ${realAttempts}/${config.maxRetries}: Class not found, retrying...`);
         await Bun.sleep(config.retryIntervalMs);
         continue;
       }
 
       // Don't check bookings count — just fire the booking request immediately.
       // The server is the source of truth; checking locally wastes time.
-      log(`Attempt ${attempt}/${config.maxRetries}: Booking class ${classInfo.id}...`);
+      realAttempts++;
+      log(`Attempt ${realAttempts}/${config.maxRetries}: Booking class ${classInfo.id}...`);
       const result = await bookClass(config.auth.jwt, classInfo.id, config.auth.userId);
       log(`SUCCESS! Booked ${slot.className} ${slot.day} ${slot.time} (booking id=${result.id})`);
       return true;
@@ -145,23 +149,26 @@ async function attemptBooking(
       const isTooEarly = msg.includes("advance") || msg.includes("early") || msg.includes("not yet") || msg.includes("far");
 
       if (isTooEarly) {
-        // Too early — spam immediately, no delay
-        if (attempt % 20 === 0) {
-          log(`Attempt ${attempt}/${config.maxRetries}: Still too early...`);
+        // Too early — does NOT count against maxRetries, spam immediately
+        earlyAttempts++;
+        if (earlyAttempts % 50 === 0) {
+          log(`Waiting for window to open... (${earlyAttempts} early attempts)`);
         }
       } else if (msg.includes("full") || msg.includes("limit") || msg.includes("complet")) {
-        log(`Attempt ${attempt}/${config.maxRetries}: Full — ${msg}`);
+        realAttempts++;
+        log(`Attempt ${realAttempts}/${config.maxRetries}: Full — ${msg}`);
         // Keep retrying in case someone cancels, but slightly slower
         await Bun.sleep(config.retryIntervalMs * 5);
       } else {
-        log(`Attempt ${attempt}/${config.maxRetries}: Error — ${msg}`);
+        realAttempts++;
+        log(`Attempt ${realAttempts}/${config.maxRetries}: Error — ${msg}`);
         await Bun.sleep(config.retryIntervalMs);
       }
       prefetchedClass = undefined;
     }
   }
 
-  log(`FAILED: Could not book ${slot.className} ${slot.day} ${slot.time} after ${config.maxRetries} attempts`);
+  log(`FAILED: Could not book ${slot.className} ${slot.day} ${slot.time} after ${realAttempts} attempts (${earlyAttempts} early)`);
   return false;
 }
 
