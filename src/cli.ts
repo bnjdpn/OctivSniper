@@ -157,7 +157,7 @@ async function fetchWeekClasses(config: OctivConfig): Promise<ClassDate[]> {
 function buildClassOptions(
   classes: ClassDate[],
   config: OctivConfig
-): { label: string; value: SlotConfig; hint: string; selected: boolean }[] {
+): { label: string; value: SlotConfig; hint: string; selected: boolean; group: string }[] {
   // Sort by date then time
   classes.sort((a, b) => {
     const d = a.date.localeCompare(b.date);
@@ -190,6 +190,7 @@ function buildClassOptions(
       value: { day: dayEn, time, className: name } as SlotConfig,
       hint,
       selected: isConfigured,
+      group: c.date,
     };
   });
 }

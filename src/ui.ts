@@ -80,6 +80,7 @@ export interface MultiSelectOption<T> {
   value: T;
   hint?: string;
   selected?: boolean;
+  group?: string; // Used for ←/→ navigation between groups
 }
 
 export function multiSelect<T>(opts: {
@@ -98,6 +99,18 @@ export function multiSelect<T>(opts: {
   options.forEach((opt, i) => {
     if (opt.selected) selected.add(i);
   });
+
+  // Pre-compute group boundaries for ←/→ navigation
+  const groupStarts: number[] = [];
+  let lastGroup = "";
+  options.forEach((opt, i) => {
+    const g = opt.group ?? "";
+    if (g !== lastGroup) {
+      groupStarts.push(i);
+      lastGroup = g;
+    }
+  });
+  const hasGroups = groupStarts.length > 1;
 
   const maxVisible = Math.min(options.length, 20);
   let scrollOffset = 0;
@@ -131,13 +144,10 @@ export function multiSelect<T>(opts: {
     const count = selected.size;
     const countStr =
       count > 0 ? green(` ${count} selectionne(s)`) : "";
-    const scrollHint =
-      options.length > maxVisible
-        ? dim("  \u2191\u2193 naviguer  ")
-        : dim("  ");
-    process.stdout.write(
-      `${scrollHint}${dim("\u2191\u2193 naviguer  espace selectionner  a tout  \u21b5 confirmer")}${countStr}\n`
-    );
+    const navHint = hasGroups
+      ? dim("  \u2190\u2192 jour  \u2191\u2193 cours  espace selectionner  a tout  \u21b5 confirmer")
+      : dim("  \u2191\u2193 naviguer  espace selectionner  a tout  \u21b5 confirmer");
+    process.stdout.write(`${navHint}${countStr}\n`);
     rendered = true;
   };
 
@@ -158,6 +168,18 @@ export function multiSelect<T>(opts: {
         cursor = (cursor - 1 + options.length) % options.length;
       } else if (key === "\x1b[B" || key === "j") {
         cursor = (cursor + 1) % options.length;
+      } else if (key === "\x1b[C") {
+        // Right arrow → next group
+        const nextGroup = groupStarts.find((s) => s > cursor);
+        cursor = nextGroup ?? groupStarts[0] ?? cursor;
+      } else if (key === "\x1b[D") {
+        // Left arrow → previous group
+        let prev = groupStarts[0] ?? 0;
+        for (const s of groupStarts) {
+          if (s >= cursor) break;
+          prev = s;
+        }
+        cursor = prev;
       } else if (key === " ") {
         if (selected.has(cursor)) selected.delete(cursor);
         else selected.add(cursor);
