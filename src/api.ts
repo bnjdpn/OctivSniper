@@ -1,11 +1,12 @@
 import type { ClassDate, BookingResult } from "./types";
 
-const BASE_URL = "https://app.octivfitness.com";
+const BASE_URL = "https://api.octivfitness.com";
 
 const DEFAULT_HEADERS = {
   "X-CamelCase": "true",
-  Accept: "application/json",
+  Accept: "application/json, text/plain, */*",
   "Content-Type": "application/json",
+  "bypass-tunnel-reminder": "*",
 };
 
 function authHeaders(jwt: string) {
@@ -22,7 +23,7 @@ export async function login(
   const res = await fetch(`${BASE_URL}/api/login`, {
     method: "POST",
     headers: DEFAULT_HEADERS,
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username: email, password }),
   });
 
   if (!res.ok) {
@@ -31,7 +32,7 @@ export async function login(
   }
 
   const data = await res.json();
-  return { jwt: data.token || data.jwt || data.accessToken };
+  return { jwt: data.accessToken };
 }
 
 export async function getUserInfo(
@@ -47,12 +48,11 @@ export async function getUserInfo(
   }
 
   const data = await res.json();
-  const user = data.data || data;
 
   return {
-    userId: user.id,
-    tenantId: user.tenantId,
-    locationId: user.locationId || user.locations?.[0]?.id,
+    userId: data.id,
+    tenantId: data.userTenants[0].tenantId,
+    locationId: data.userTenants[0].tenant.locations[0].id,
   };
 }
 
@@ -100,7 +100,7 @@ export async function bookClass(
   }
 
   const data = await res.json();
-  return (data.data || data) as BookingResult;
+  return data as BookingResult;
 }
 
 export async function cancelBooking(
@@ -124,9 +124,10 @@ export function findClassByNameAndTime(
   time: string // "HH:MM"
 ): ClassDate | undefined {
   return classes.find((c) => {
-    const classTime = new Date(c.startAt);
-    const hhmm = `${classTime.getHours().toString().padStart(2, "0")}:${classTime.getMinutes().toString().padStart(2, "0")}`;
-    const nameMatch = c.className.toLowerCase().includes(className.toLowerCase());
+    // startTime is "HH:MM:SS" format, name is the class name
+    const hhmm = (c as any).startTime?.slice(0, 5);
+    const name = (c as any).name || c.className;
+    const nameMatch = name?.toLowerCase().includes(className.toLowerCase());
     return nameMatch && hhmm === time;
   });
 }

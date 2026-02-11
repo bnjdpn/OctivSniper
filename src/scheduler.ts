@@ -92,7 +92,8 @@ async function prefetchClassDateId(
     );
     const match = findClassByNameAndTime(classes, slot.className, slot.time);
     if (match) {
-      log(`Found class: ${match.className} (id=${match.id}) - ${match.availableSpots}/${match.totalSpots} spots`);
+      const booked = match.bookings?.length ?? 0;
+      log(`Found class: ${match.name} (id=${match.id}) - ${booked}/${match.limit} booked`);
     } else {
       log(`No matching class found for ${slot.className} at ${slot.time}`);
     }
@@ -134,8 +135,9 @@ async function attemptBooking(
         continue;
       }
 
-      if (classInfo.isFull) {
-        log(`Attempt ${attempt}/${config.maxRetries}: Class is full!`);
+      const booked = classInfo.bookings?.length ?? 0;
+      if (booked >= classInfo.limit) {
+        log(`Attempt ${attempt}/${config.maxRetries}: Class is full (${booked}/${classInfo.limit})!`);
         return false;
       }
 

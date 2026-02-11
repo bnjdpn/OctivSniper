@@ -159,10 +159,12 @@ export async function handleTest(): Promise<void> {
     } else {
       console.log(`Found ${classes.length} class(es):`);
       for (const c of classes) {
-        const start = new Date(c.startAt);
-        const time = `${start.getHours().toString().padStart(2, "0")}:${start.getMinutes().toString().padStart(2, "0")}`;
-        const spots = c.isFull ? "FULL" : `${c.availableSpots}/${c.totalSpots} spots`;
-        console.log(`  ${time} - ${c.className} (${spots})`);
+        const time = (c as any).startTime?.slice(0, 5) || "??:??";
+        const name = (c as any).name || c.className || "?";
+        const booked = c.bookings?.length ?? 0;
+        const limit = c.limit ?? "?";
+        const spots = booked >= (c.limit ?? Infinity) ? "FULL" : `${booked}/${limit} booked`;
+        console.log(`  ${time} - ${name} (${spots})`);
       }
     }
   } catch (err) {
@@ -185,7 +187,8 @@ export async function handleTest(): Promise<void> {
         );
         const match = findClassByNameAndTime(classes, s.slot.className, s.slot.time);
         if (match) {
-          console.log(`  ${s.slot.className} ${s.slot.day} ${s.slot.time} → found (id=${match.id}, ${match.availableSpots}/${match.totalSpots} spots)`);
+          const booked = match.bookings?.length ?? 0;
+          console.log(`  ${s.slot.className} ${s.slot.day} ${s.slot.time} → found (id=${match.id}, ${booked}/${match.limit} booked)`);
         } else {
           console.log(`  ${s.slot.className} ${s.slot.day} ${s.slot.time} → not found on ${dateStr}`);
         }

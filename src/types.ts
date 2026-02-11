@@ -31,22 +31,22 @@ export interface OctivConfig {
 
 export interface ClassDate {
   id: number;
+  date: string; // "YYYY-MM-DD"
+  name: string; // e.g. "WOD"
+  startTime: string; // "HH:MM:SS"
+  endTime: string; // "HH:MM:SS"
+  limit: number;
   classId: number;
-  className: string;
-  startAt: string; // ISO datetime
-  endAt: string; // ISO datetime
-  availableSpots: number;
-  totalSpots: number;
-  bookings: number;
-  isFull: boolean;
-  isBookable: boolean;
+  bookings: any[]; // existing bookings array
+  // Kept for compatibility
+  className?: string;
+  startAt?: string;
 }
 
 export interface BookingResult {
   id: number;
-  classDateId: number;
-  userId: number;
-  status: string;
+  statusId: number;
+  status: { id: number; name: string };
 }
 
 export interface ScheduledBooking {
