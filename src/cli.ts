@@ -8,8 +8,7 @@ export async function handleLogin(): Promise<void> {
 
   process.stdout.write("Email: ");
   const email = (await readLine()).trim();
-  process.stdout.write("Password: ");
-  const password = (await readLine()).trim();
+  const password = await readPassword("Password: ");
 
   console.log("Logging in...");
   try {
@@ -230,6 +229,47 @@ function readLine(): Promise<string> {
     };
     process.stdin.resume();
     process.stdin.on("data", onData);
+  });
+}
+
+function readPassword(prompt: string): Promise<string> {
+  process.stdout.write(prompt);
+
+  // If not a TTY (piped input), fall back to normal readLine
+  if (!process.stdin.isTTY) {
+    return readLine();
+  }
+
+  return new Promise((resolve) => {
+    const stdin = process.stdin;
+    stdin.setRawMode!(true);
+    stdin.resume();
+    stdin.setEncoding("utf8");
+
+    let password = "";
+    const onData = (ch: string) => {
+      const c = ch.toString();
+      if (c === "\n" || c === "\r" || c === "\u0004") {
+        stdin.setRawMode!(false);
+        stdin.pause();
+        stdin.removeListener("data", onData);
+        process.stdout.write("\n");
+        resolve(password);
+      } else if (c === "\u0003") {
+        stdin.setRawMode!(false);
+        process.stdout.write("\n");
+        process.exit(0);
+      } else if (c === "\u007f" || c === "\b") {
+        if (password.length > 0) {
+          password = password.slice(0, -1);
+          process.stdout.write("\b \b");
+        }
+      } else {
+        password += c;
+        process.stdout.write("*");
+      }
+    };
+    stdin.on("data", onData);
   });
 }
 
