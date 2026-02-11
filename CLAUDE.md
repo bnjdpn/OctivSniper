@@ -12,19 +12,17 @@ OctivSniper auto-books classes on any gym using the Octiv Fitness platform the i
 
 ## Commands
 
-```
-bun run src/index.ts <command>
-```
+After `bun link`, the `octiv` command is available globally:
 
 | Command | Description |
 |---------|-------------|
-| `login` | Interactive email/password prompt, stores JWT in config.json |
-| `add <day> <time> <name>` | Add a slot (e.g. `add monday 07:00 WOD`) |
-| `list` | Show configured slots |
-| `remove <index>` | Remove a slot by index |
-| `next` | Display upcoming booking attempts with timing |
-| `test` | Dry-run: validate JWT, fetch today's classes, check slot matching |
-| `run` | Start the scheduler daemon (long-running) |
+| `octiv login` | Interactive email/password prompt, stores JWT in config.json |
+| `octiv add <day> <time> <name>` | Add a slot (e.g. `octiv add monday 07:00 WOD`) |
+| `octiv list` | Show configured slots |
+| `octiv remove <index>` | Remove a slot by index |
+| `octiv next` | Display upcoming booking attempts with timing |
+| `octiv test` | Dry-run: validate JWT, fetch today's classes, check slot matching |
+| `octiv run` | Start the scheduler daemon (long-running) |
 
 ## Architecture
 

@@ -27,14 +27,17 @@ OctivSniper surveille tes creneaux configures et lance les reservations automati
 git clone https://github.com/bnjdpn/OctivSniper.git
 cd OctivSniper
 bun install
+bun link
 ```
+
+La commande `bun link` enregistre `octiv` comme commande globale.
 
 ## Utilisation
 
 ### 1. Se connecter
 
 ```bash
-bun run src/index.ts login
+octiv login
 ```
 
 Saisir email et mot de passe. Le JWT est sauvegarde dans `config.json` (gitignore).
@@ -42,15 +45,15 @@ Saisir email et mot de passe. Le JWT est sauvegarde dans `config.json` (gitignor
 ### 2. Ajouter des creneaux
 
 ```bash
-bun run src/index.ts add monday 07:00 WOD
-bun run src/index.ts add sunday 09:45 WOD
-bun run src/index.ts add wednesday 12:15 GYMNASTICS
+octiv add monday 07:00 WOD
+octiv add sunday 09:45 WOD
+octiv add wednesday 12:15 GYMNASTICS
 ```
 
 ### 3. Verifier la config
 
 ```bash
-bun run src/index.ts list
+octiv list
 ```
 
 ```
@@ -63,7 +66,7 @@ Configured slots:
 ### 4. Voir les prochains bookings
 
 ```bash
-bun run src/index.ts next
+octiv next
 ```
 
 ```
@@ -78,7 +81,7 @@ Upcoming bookings:
 ### 5. Tester la connexion API
 
 ```bash
-bun run src/index.ts test
+octiv test
 ```
 
 Verifie le JWT, liste les cours du jour, et teste le matching des creneaux configures.
@@ -86,7 +89,7 @@ Verifie le JWT, liste les cours du jour, et teste le matching des creneaux confi
 ### 6. Lancer le scheduler
 
 ```bash
-bun run src/index.ts run
+octiv run
 ```
 
 Le scheduler tourne en continu. Il programme des timers pour chaque creneau et tente le booking a l'heure d'ouverture. Apres chaque tentative (succes ou echec), il se reprogramme pour la semaine suivante.
@@ -94,20 +97,20 @@ Le scheduler tourne en continu. Il programme des timers pour chaque creneau et t
 Pour un fonctionnement permanent :
 
 ```bash
-nohup bun run src/index.ts run > octiv.log 2>&1 &
+nohup octiv run > octiv.log 2>&1 &
 ```
 
 ## Commandes
 
 | Commande | Description |
 |----------|-------------|
-| `login` | Connexion email/mot de passe |
-| `add <jour> <heure> <nom>` | Ajouter un creneau (`monday`..`sunday`, `HH:MM`) |
-| `list` | Lister les creneaux |
-| `remove <index>` | Supprimer un creneau |
-| `next` | Prochains bookings programmes |
-| `test` | Test API (dry run) |
-| `run` | Lancer le daemon |
+| `octiv login` | Connexion email/mot de passe |
+| `octiv add <jour> <heure> <nom>` | Ajouter un creneau (`monday`..`sunday`, `HH:MM`) |
+| `octiv list` | Lister les creneaux |
+| `octiv remove <index>` | Supprimer un creneau |
+| `octiv next` | Prochains bookings programmes |
+| `octiv test` | Test API (dry run) |
+| `octiv run` | Lancer le daemon |
 
 ## Configuration
 
