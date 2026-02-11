@@ -15,6 +15,7 @@ OctivSniper surveille tes creneaux configures et lance les reservations automati
 - **Pre-fetch** — recupere l'ID du cours 2 minutes avant pour ne pas perdre de temps
 - **Retry agressif** — toutes les 500ms, jusqu'a 20 tentatives
 - **Reschedule auto** — apres chaque booking, programme la semaine suivante
+- **Refresh token** — renouvelle automatiquement le JWT avant expiration
 
 ## Prerequis
 
@@ -32,85 +33,55 @@ bun link
 
 La commande `bun link` enregistre `octiv` comme commande globale.
 
-## Utilisation
-
-### 1. Se connecter
+## Utilisation rapide
 
 ```bash
-octiv login
+octiv
 ```
 
-Saisir email et mot de passe. Le JWT est sauvegarde dans `config.json` (gitignore).
+C'est tout. Le mode interactif te guide :
 
-### 2. Ajouter des creneaux
-
-```bash
-octiv add monday 07:00 WOD
-octiv add sunday 09:45 WOD
-octiv add wednesday 12:15 GYMNASTICS
-```
-
-### 3. Verifier la config
-
-```bash
-octiv list
-```
+1. Connexion automatique (login si premiere utilisation)
+2. Affiche les cours de la semaine
+3. Selectionne ceux a reserver avec les fleches et espace
+4. Le scheduler se lance automatiquement
 
 ```
-Configured slots:
-  [0] WOD - monday at 07:00
-  [1] WOD - sunday at 09:45
-  [2] GYMNASTICS - wednesday at 12:15
+  OctivSniper
+  ✓ Connecte : dupinbenjam@gmail.com
+  ✓ 18 cours trouves
+
+  Selectionne les cours a reserver automatiquement :
+
+  ▸ ● lun 17/02  07:00  WOD              3/12
+    ○ lun 17/02  12:15  WOD              8/12
+    ● mar 18/02  07:00  WOD              2/12
+    ○ mer 19/02  07:00  WOD              5/12
+    ○ dim 23/02  09:45  WOD              0/12
+
+  ↑↓ naviguer  espace selectionner  a tout  ↵ confirmer  2 selectionne(s)
 ```
 
-### 4. Voir les prochains bookings
+## Commandes avancees
 
-```bash
-octiv next
-```
-
-```
-Upcoming bookings:
-
-  WOD - monday 07:00
-    Class:   lundi 17 fevrier 2025
-    Opens:   13/02/2025 08:00:00
-    Attempt: 13/02/2025 07:59:30 (in 2d 14h 30m)
-```
-
-### 5. Tester la connexion API
-
-```bash
-octiv test
-```
-
-Verifie le JWT, liste les cours du jour, et teste le matching des creneaux configures.
-
-### 6. Lancer le scheduler
-
-```bash
-octiv run
-```
-
-Le scheduler tourne en continu. Il programme des timers pour chaque creneau et tente le booking a l'heure d'ouverture. Apres chaque tentative (succes ou echec), il se reprogramme pour la semaine suivante.
-
-Pour un fonctionnement permanent :
-
-```bash
-nohup octiv run > octiv.log 2>&1 &
-```
-
-## Commandes
+Les sous-commandes restent disponibles pour le scripting :
 
 | Commande | Description |
 |----------|-------------|
+| `octiv` | **Mode interactif** (recommande) |
 | `octiv login` | Connexion email/mot de passe |
 | `octiv add <jour> <heure> <nom>` | Ajouter un creneau (`monday`..`sunday`, `HH:MM`) |
 | `octiv list` | Lister les creneaux |
 | `octiv remove <index>` | Supprimer un creneau |
 | `octiv next` | Prochains bookings programmes |
 | `octiv test` | Test API (dry run) |
-| `octiv run` | Lancer le daemon |
+| `octiv run` | Lancer le daemon (sans menu interactif) |
+
+Pour un fonctionnement permanent en arriere-plan :
+
+```bash
+nohup octiv run > octiv.log 2>&1 &
+```
 
 ## Configuration
 
@@ -121,6 +92,8 @@ Le fichier `config.json` (cree automatiquement, gitignore) :
   "auth": {
     "email": "...",
     "jwt": "...",
+    "refreshToken": "...",
+    "expiresAt": 0,
     "userId": 0,
     "tenantId": 0,
     "locationId": 0
@@ -144,3 +117,4 @@ Le fichier `config.json` (cree automatiquement, gitignore) :
 
 - **Bun** — runtime TypeScript, zero config
 - **Zero dependance runtime** — utilise les built-ins Bun (`fetch`, `Bun.sleep`, `Bun.file`)
+- **Zero dependance UI** — menu interactif avec ANSI escape codes natifs

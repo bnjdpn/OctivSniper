@@ -19,7 +19,7 @@ function authHeaders(jwt: string) {
 export async function login(
   email: string,
   password: string
-): Promise<{ jwt: string }> {
+): Promise<{ jwt: string; refreshToken: string; expiresAt: number }> {
   const res = await fetch(`${BASE_URL}/api/login`, {
     method: "POST",
     headers: DEFAULT_HEADERS,
@@ -32,7 +32,38 @@ export async function login(
   }
 
   const data = await res.json();
-  return { jwt: data.accessToken };
+  return {
+    jwt: data.accessToken,
+    refreshToken: data.refreshToken || "",
+    expiresAt: Date.now() + (data.expiresIn || 31536000) * 1000,
+  };
+}
+
+export async function refreshAuth(
+  refreshToken: string
+): Promise<{ jwt: string; refreshToken: string; expiresAt: number }> {
+  // Try Laravel Passport OAuth2 refresh
+  const res = await fetch(`${BASE_URL}/oauth/token`, {
+    method: "POST",
+    headers: DEFAULT_HEADERS,
+    body: JSON.stringify({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: "2",
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Token refresh failed (${res.status})`);
+  }
+
+  const data = await res.json();
+  return {
+    jwt: data.accessToken || data.access_token,
+    refreshToken: data.refreshToken || data.refresh_token || refreshToken,
+    expiresAt:
+      Date.now() + (data.expiresIn || data.expires_in || 31536000) * 1000,
+  };
 }
 
 export async function getUserInfo(
@@ -107,10 +138,13 @@ export async function cancelBooking(
   jwt: string,
   bookingId: number
 ): Promise<void> {
-  const res = await fetch(`${BASE_URL}/api/class-bookings/${bookingId}/cancel`, {
-    method: "PUT",
-    headers: authHeaders(jwt),
-  });
+  const res = await fetch(
+    `${BASE_URL}/api/class-bookings/${bookingId}/cancel`,
+    {
+      method: "PUT",
+      headers: authHeaders(jwt),
+    }
+  );
 
   if (!res.ok) {
     const body = await res.text();
@@ -124,9 +158,8 @@ export function findClassByNameAndTime(
   time: string // "HH:MM"
 ): ClassDate | undefined {
   return classes.find((c) => {
-    // startTime is "HH:MM:SS" format, name is the class name
-    const hhmm = (c as any).startTime?.slice(0, 5);
-    const name = (c as any).name || c.className;
+    const hhmm = c.startTime?.slice(0, 5);
+    const name = c.name || c.className;
     const nameMatch = name?.toLowerCase().includes(className.toLowerCase());
     return nameMatch && hhmm === time;
   });

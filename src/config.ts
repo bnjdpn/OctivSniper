@@ -7,6 +7,8 @@ const DEFAULT_CONFIG: OctivConfig = {
   auth: {
     email: "",
     jwt: "",
+    refreshToken: "",
+    expiresAt: 0,
     userId: 0,
     tenantId: 0,
     locationId: 0,
@@ -22,12 +24,12 @@ export async function loadConfig(): Promise<OctivConfig> {
     const file = Bun.file(CONFIG_PATH);
     if (await file.exists()) {
       const data = await file.json();
-      return { ...DEFAULT_CONFIG, ...data };
+      return { ...DEFAULT_CONFIG, ...data, auth: { ...DEFAULT_CONFIG.auth, ...data.auth } };
     }
   } catch {
-    // Config doesn't exist or is invalid, return default
+    // Config doesn't exist or is invalid
   }
-  return { ...DEFAULT_CONFIG };
+  return { ...DEFAULT_CONFIG, auth: { ...DEFAULT_CONFIG.auth } };
 }
 
 export async function saveConfig(config: OctivConfig): Promise<void> {
@@ -51,13 +53,8 @@ export function removeSlot(config: OctivConfig, index: number): OctivConfig {
 
 export function isValidDay(day: string): day is DayOfWeek {
   return [
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
+    "monday", "tuesday", "wednesday", "thursday",
+    "friday", "saturday", "sunday",
   ].includes(day.toLowerCase());
 }
 

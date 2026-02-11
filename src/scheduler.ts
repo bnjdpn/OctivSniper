@@ -1,5 +1,6 @@
 import type { SlotConfig, OctivConfig, ScheduledBooking, ClassDate } from "./types";
-import { getClassDates, bookClass, findClassByNameAndTime } from "./api";
+import { getClassDates, bookClass, findClassByNameAndTime, refreshAuth } from "./api";
+import { saveConfig } from "./config";
 
 const DAY_MAP: Record<string, number> = {
   sunday: 0,
@@ -11,16 +12,14 @@ const DAY_MAP: Record<string, number> = {
   saturday: 6,
 };
 
-const ANTICIPATION_MS = 30_000; // Start 30s before opening
+const ANTICIPATION_MS = 30_000;
+const TOKEN_REFRESH_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days before expiry
 
 function log(msg: string) {
   const ts = new Date().toISOString();
   console.log(`[${ts}] ${msg}`);
 }
 
-/**
- * Find the next occurrence of a given day/time from now.
- */
 export function getNextClassDate(day: string, time: string): Date {
   const now = new Date();
   const [hours, minutes] = time.split(":").map(Number);
@@ -29,25 +28,19 @@ export function getNextClassDate(day: string, time: string): Date {
   const result = new Date(now);
   result.setHours(hours, minutes, 0, 0);
 
-  // Find the next occurrence of the target day
   const currentDay = now.getDay();
   let daysUntil = targetDay - currentDay;
 
   if (daysUntil < 0) {
     daysUntil += 7;
   } else if (daysUntil === 0 && result <= now) {
-    daysUntil = 7; // Already passed today, schedule next week
+    daysUntil = 7;
   }
 
   result.setDate(result.getDate() + daysUntil);
   return result;
 }
 
-/**
- * Calculate when the booking window opens.
- * Bookings open `advanceDays` before the class, at the class end time.
- * We assume a 1-hour class duration by default.
- */
 export function calculateOpeningTime(
   classDate: Date,
   advanceDays: number,
@@ -59,22 +52,32 @@ export function calculateOpeningTime(
   return opening;
 }
 
-/**
- * Get all scheduled bookings with their opening times.
- */
 export function getScheduledBookings(config: OctivConfig): ScheduledBooking[] {
   return config.slots.map((slot) => {
     const classDate = getNextClassDate(slot.day, slot.time);
     const openingTime = calculateOpeningTime(classDate, config.advanceBookingDays);
     const attemptTime = new Date(openingTime.getTime() - ANTICIPATION_MS);
-
     return { slot, classDate, openingTime, attemptTime };
   });
 }
 
-/**
- * Pre-fetch the classDateId before the booking window opens.
- */
+async function refreshTokenIfNeeded(config: OctivConfig): Promise<void> {
+  if (!config.auth.expiresAt || !config.auth.refreshToken) return;
+  if (Date.now() < config.auth.expiresAt - TOKEN_REFRESH_THRESHOLD_MS) return;
+
+  log("Token expires soon, attempting refresh...");
+  try {
+    const result = await refreshAuth(config.auth.refreshToken);
+    config.auth.jwt = result.jwt;
+    config.auth.refreshToken = result.refreshToken;
+    config.auth.expiresAt = result.expiresAt;
+    await saveConfig(config);
+    log("Token refreshed successfully");
+  } catch (err) {
+    log(`Token refresh failed: ${err}. Re-login may be required.`);
+  }
+}
+
 async function prefetchClassDateId(
   config: OctivConfig,
   slot: SlotConfig,
@@ -104,9 +107,6 @@ async function prefetchClassDateId(
   }
 }
 
-/**
- * Attempt to book a class with retries.
- */
 async function attemptBooking(
   config: OctivConfig,
   slot: SlotConfig,
@@ -117,7 +117,6 @@ async function attemptBooking(
 
   for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
     try {
-      // Use prefetched classDateId or fetch fresh
       let classInfo = prefetchedClass;
       if (!classInfo) {
         const classes = await getClassDates(
@@ -147,12 +146,11 @@ async function attemptBooking(
       return true;
     } catch (err: any) {
       const msg = err?.message || String(err);
-      if (msg.includes("advance") || msg.includes("early") || msg.includes("not yet")) {
+      if (msg.includes("advance") || msg.includes("early") || msg.includes("not yet") || msg.includes("far")) {
         log(`Attempt ${attempt}/${config.maxRetries}: Too early, retrying in ${config.retryIntervalMs}ms...`);
       } else {
         log(`Attempt ${attempt}/${config.maxRetries}: Error - ${msg}`);
       }
-      // Clear prefetched to force re-fetch on next attempt
       prefetchedClass = undefined;
       await Bun.sleep(config.retryIntervalMs);
     }
@@ -162,89 +160,68 @@ async function attemptBooking(
   return false;
 }
 
-/**
- * Schedule a single booking.
- */
+function scheduleNext(slot: SlotConfig, classDate: Date, config: OctivConfig) {
+  const nextClassDate = new Date(classDate);
+  nextClassDate.setDate(nextClassDate.getDate() + 7);
+  const nextOpening = calculateOpeningTime(nextClassDate, config.advanceBookingDays);
+  const nextAttempt = new Date(nextOpening.getTime() - ANTICIPATION_MS);
+  scheduleBooking(
+    { slot, classDate: nextClassDate, openingTime: nextOpening, attemptTime: nextAttempt },
+    config
+  );
+}
+
 export function scheduleBooking(
   scheduled: ScheduledBooking,
-  config: OctivConfig,
-  onComplete?: () => void
+  config: OctivConfig
 ): void {
   const { slot, classDate, openingTime, attemptTime } = scheduled;
   const now = new Date();
   const msUntilAttempt = attemptTime.getTime() - now.getTime();
 
   if (msUntilAttempt < 0) {
-    log(`Booking window for ${slot.className} ${slot.day} ${slot.time} has already passed, scheduling next week`);
-    // Schedule for next week
-    const nextClassDate = new Date(classDate);
-    nextClassDate.setDate(nextClassDate.getDate() + 7);
-    const nextOpening = calculateOpeningTime(nextClassDate, config.advanceBookingDays);
-    const nextAttempt = new Date(nextOpening.getTime() - ANTICIPATION_MS);
-    const nextScheduled: ScheduledBooking = {
-      slot,
-      classDate: nextClassDate,
-      openingTime: nextOpening,
-      attemptTime: nextAttempt,
-    };
-    scheduleBooking(nextScheduled, config, onComplete);
+    log(`Booking window for ${slot.className} ${slot.day} ${slot.time} already passed, scheduling next week`);
+    scheduleNext(slot, classDate, config);
     return;
   }
 
   log(
     `Scheduled: ${slot.className} ${slot.day} ${slot.time} → ` +
-      `class on ${classDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} | ` +
+      `class ${classDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} | ` +
       `opens ${openingTime.toLocaleString("fr-FR")} | ` +
-      `attempt at ${attemptTime.toLocaleString("fr-FR")} ` +
+      `attempt ${attemptTime.toLocaleString("fr-FR")} ` +
       `(in ${formatDuration(msUntilAttempt)})`
   );
 
-  // Pre-fetch 2 minutes before attempt time
+  // Pre-fetch 2 minutes before
   const prefetchMs = msUntilAttempt - 120_000;
   let prefetchedClass: ClassDate | undefined;
 
   if (prefetchMs > 0) {
     setTimeout(async () => {
+      await refreshTokenIfNeeded(config);
       prefetchedClass = await prefetchClassDateId(config, slot, classDate);
     }, prefetchMs);
   }
 
-  // Schedule the actual booking attempt
+  // Schedule booking attempt
   setTimeout(async () => {
+    await refreshTokenIfNeeded(config);
+
     log(`Starting booking attempts for ${slot.className} ${slot.day} ${slot.time}...`);
 
-    // If we haven't prefetched yet, do it now
     if (!prefetchedClass) {
       prefetchedClass = await prefetchClassDateId(config, slot, classDate);
     }
 
-    const success = await attemptBooking(config, slot, classDate, prefetchedClass);
-
-    if (success || !success) {
-      // Schedule next week regardless
-      const nextClassDate = new Date(classDate);
-      nextClassDate.setDate(nextClassDate.getDate() + 7);
-      const nextOpening = calculateOpeningTime(nextClassDate, config.advanceBookingDays);
-      const nextAttempt = new Date(nextOpening.getTime() - ANTICIPATION_MS);
-      const nextScheduled: ScheduledBooking = {
-        slot,
-        classDate: nextClassDate,
-        openingTime: nextOpening,
-        attemptTime: nextAttempt,
-      };
-      scheduleBooking(nextScheduled, config, onComplete);
-    }
-
-    onComplete?.();
+    await attemptBooking(config, slot, classDate, prefetchedClass);
+    scheduleNext(slot, classDate, config);
   }, msUntilAttempt);
 }
 
-/**
- * Run the scheduler for all configured slots.
- */
 export function runScheduler(config: OctivConfig): void {
   if (config.slots.length === 0) {
-    log("No slots configured. Use 'octiv add <day> <time> <className>' to add one.");
+    log("No slots configured.");
     return;
   }
 

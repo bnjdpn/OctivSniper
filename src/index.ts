@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import {
+  interactiveMode,
   handleLogin,
   handleAdd,
   handleList,
@@ -13,6 +14,7 @@ const USAGE = `
 OctivSniper - Auto-booking for Octiv Fitness
 
 Usage:
+  octiv                    Mode interactif (recommande)
   octiv login              Login with email/password
   octiv add <day> <time> <name>  Add a slot to monitor
   octiv list               List configured slots
@@ -20,41 +22,37 @@ Usage:
   octiv next               Show next scheduled bookings
   octiv test               Test API connection (dry run)
   octiv run                Start the scheduler daemon
-
-Examples:
-  octiv login
-  octiv add monday 07:00 WOD
-  octiv add sunday 09:45 WOD
-  octiv list
-  octiv next
-  octiv run
 `.trim();
 
 const [command, ...args] = process.argv.slice(2);
 
-switch (command) {
-  case "login":
-    await handleLogin();
-    break;
-  case "add":
-    await handleAdd(args);
-    break;
-  case "list":
-    await handleList();
-    break;
-  case "remove":
-    await handleRemove(args);
-    break;
-  case "next":
-    await handleNext();
-    break;
-  case "test":
-    await handleTest();
-    break;
-  case "run":
-    await handleRun();
-    break;
-  default:
-    console.log(USAGE);
-    break;
+if (!command) {
+  await interactiveMode();
+} else {
+  switch (command) {
+    case "login":
+      await handleLogin();
+      break;
+    case "add":
+      await handleAdd(args);
+      break;
+    case "list":
+      await handleList();
+      break;
+    case "remove":
+      await handleRemove(args);
+      break;
+    case "next":
+      await handleNext();
+      break;
+    case "test":
+      await handleTest();
+      break;
+    case "run":
+      await handleRun();
+      break;
+    default:
+      console.log(USAGE);
+      break;
+  }
 }

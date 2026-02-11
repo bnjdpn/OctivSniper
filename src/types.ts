@@ -16,6 +16,8 @@ export interface SlotConfig {
 export interface AuthConfig {
   email: string;
   jwt: string;
+  refreshToken: string;
+  expiresAt: number; // timestamp ms
   userId: number;
   tenantId: number;
   locationId: number;
@@ -37,7 +39,7 @@ export interface ClassDate {
   endTime: string; // "HH:MM:SS"
   limit: number;
   classId: number;
-  bookings: any[]; // existing bookings array
+  bookings: any[];
   // Kept for compatibility
   className?: string;
   startAt?: string;
