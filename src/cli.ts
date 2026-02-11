@@ -6,6 +6,7 @@ import type { DayOfWeek, OctivConfig, SlotConfig, ClassDate } from "./types";
 
 const DAYS_EN = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const DAYS_FR_SHORT = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
+const DAYS_FR_LONG = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
 // ─── Interactive mode ──────────────────────────────────────────────
 
@@ -26,8 +27,13 @@ export async function interactiveMode(): Promise<void> {
     return;
   }
 
-  // 3. Build options and show multi-select
+  // 3. Build options (filters past classes) and show multi-select
   const options = buildClassOptions(classes, config);
+
+  if (options.length === 0) {
+    console.log(yellow("  Aucun cours a venir trouve."));
+    return;
+  }
   const selectedSlots = await multiSelect<SlotConfig>({
     message: "Selectionne les cours a reserver automatiquement :",
     options,
@@ -43,7 +49,14 @@ export async function interactiveMode(): Promise<void> {
     return;
   }
 
-  // 5. Show next bookings
+  // 5. Show selected slots summary
+  console.log();
+  for (const slot of selectedSlots) {
+    const dayFr = DAYS_FR_LONG[DAYS_EN.indexOf(slot.day)] || slot.day;
+    console.log(dim(`  ${dayFr} ${slot.time} — ${slot.className}`));
+  }
+
+  // 6. Show next booking attempts
   console.log();
   const scheduled = getScheduledBookings(config);
   scheduled.sort((a, b) => a.attemptTime.getTime() - b.attemptTime.getTime());
@@ -64,7 +77,7 @@ export async function interactiveMode(): Promise<void> {
     );
   }
 
-  // 6. Launch scheduler
+  // 7. Launch scheduler
   console.log();
   runScheduler(config);
 }
@@ -157,19 +170,32 @@ async function fetchWeekClasses(config: OctivConfig): Promise<ClassDate[]> {
 function buildClassOptions(
   classes: ClassDate[],
   config: OctivConfig
-): { label: string; value: SlotConfig; hint: string; selected: boolean; group: string }[] {
+): { label: string; value: SlotConfig; hint: string; selected: boolean; group: string; groupLabel: string }[] {
+  // Filter out past classes
+  const now = new Date();
+  const todayStr = now.toISOString().split("T")[0];
+  const nowHHMM = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+
+  const filtered = classes.filter((c) => {
+    if (c.date > todayStr) return true;
+    if (c.date < todayStr) return false;
+    // Same day: keep only future classes
+    const classTime = c.startTime.slice(0, 5);
+    return classTime > nowHHMM;
+  });
+
   // Sort by date then time
-  classes.sort((a, b) => {
+  filtered.sort((a, b) => {
     const d = a.date.localeCompare(b.date);
     return d !== 0 ? d : a.startTime.localeCompare(b.startTime);
   });
 
-  return classes.map((c) => {
+  return filtered.map((c) => {
     const [y, m, d] = c.date.split("-").map(Number);
     const dt = new Date(y, m - 1, d);
     const dayIdx = dt.getDay();
     const dayEn = DAYS_EN[dayIdx] as DayOfWeek;
-    const dayFr = DAYS_FR_SHORT[dayIdx];
+    const dayFrLong = DAYS_FR_LONG[dayIdx];
     const dateStr = `${d.toString().padStart(2, "0")}/${m.toString().padStart(2, "0")}`;
     const time = c.startTime.slice(0, 5);
     const name = c.name || "?";
@@ -182,8 +208,9 @@ function buildClassOptions(
         s.className.toLowerCase() === name.toLowerCase()
     );
 
-    const label = `${dayFr} ${dateStr}  ${time}  ${name.padEnd(16)}`;
+    const label = `${time}  ${name.padEnd(16)}`;
     const hint = `${booked}/${c.limit}`;
+    const groupLabel = `${dayFrLong} ${dateStr}`;
 
     return {
       label,
@@ -191,6 +218,7 @@ function buildClassOptions(
       hint,
       selected: isConfigured,
       group: c.date,
+      groupLabel,
     };
   });
 }

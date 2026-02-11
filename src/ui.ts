@@ -16,10 +16,14 @@ const moveUp = (n: number) => {
 };
 const eraseBelow = () => process.stdout.write(`${CSI}J`);
 
-// Ensure cursor is visible on exit (only if we hid it)
 let cursorHidden = false;
-const _hideCursorTracked = () => { cursorHidden = true; hideCursor(); };
-process.on("exit", () => { if (cursorHidden) showCursor(); });
+const trackHideCursor = () => {
+  cursorHidden = true;
+  hideCursor();
+};
+process.on("exit", () => {
+  if (cursorHidden) showCursor();
+});
 
 export function input(prompt: string): Promise<string> {
   return new Promise((resolve) => {
@@ -80,7 +84,8 @@ export interface MultiSelectOption<T> {
   value: T;
   hint?: string;
   selected?: boolean;
-  group?: string; // Used for ←/→ navigation between groups
+  group?: string;
+  groupLabel?: string;
 }
 
 export function multiSelect<T>(opts: {
@@ -94,113 +99,145 @@ export function multiSelect<T>(opts: {
     return Promise.resolve([]);
   }
 
-  let cursor = 0;
-  const selected = new Set<number>();
+  // Build groups
+  const groups: { key: string; label: string; indices: number[] }[] = [];
+  let prevKey = "";
+  for (let i = 0; i < options.length; i++) {
+    const g = options[i].group ?? "";
+    if (g !== prevKey) {
+      groups.push({ key: g, label: options[i].groupLabel ?? g, indices: [] });
+      prevKey = g;
+    }
+    groups[groups.length - 1].indices.push(i);
+  }
+  const hasGroups = groups.length > 1;
+
+  let groupIdx = 0;
+  let cursor = 0; // index within current group
+  let scrollOffset = 0;
+  const selected = new Set<number>(); // global indices
   options.forEach((opt, i) => {
     if (opt.selected) selected.add(i);
   });
 
-  // Pre-compute group boundaries for ←/→ navigation
-  const groupStarts: number[] = [];
-  let lastGroup = "";
-  options.forEach((opt, i) => {
-    const g = opt.group ?? "";
-    if (g !== lastGroup) {
-      groupStarts.push(i);
-      lastGroup = g;
-    }
-  });
-  const hasGroups = groupStarts.length > 1;
+  // Fixed render height so switching days doesn't shift the terminal
+  const termRows = process.stdout.rows || 24;
+  const maxGroupSize = Math.max(...groups.map((g) => g.indices.length));
+  const maxVisible = Math.min(maxGroupSize, hasGroups ? termRows - 7 : termRows - 5);
 
-  const maxVisible = Math.min(options.length, 20);
-  let scrollOffset = 0;
+  // Render area lines: header(2 if grouped) + options(maxVisible) + hint(1)
+  const headerLines = hasGroups ? 2 : 0; // header + blank
+  const renderLines = headerLines + maxVisible + 1; // + hint
+
   let rendered = false;
 
   const render = () => {
-    if (rendered) moveUp(maxVisible + 1);
+    if (rendered) moveUp(renderLines);
+
+    const group = groups[groupIdx];
+    const groupLen = group.indices.length;
 
     // Keep cursor in view
     if (cursor < scrollOffset) scrollOffset = cursor;
     if (cursor >= scrollOffset + maxVisible)
       scrollOffset = cursor - maxVisible + 1;
 
-    for (let vi = 0; vi < maxVisible; vi++) {
-      const i = scrollOffset + vi;
+    // Header
+    if (hasGroups) {
       clearLine();
-      if (i < options.length) {
-        const isCur = i === cursor;
-        const isSel = selected.has(i);
+      const left = groupIdx > 0 ? dim("\u25c0 ") : "  ";
+      const right = groupIdx < groups.length - 1 ? dim(" \u25b6") : "  ";
+      const pos = dim(` (${groupIdx + 1}/${groups.length})`);
+      process.stdout.write(`  ${left}${bold(group.label)}${right}${pos}\n`);
+      clearLine();
+      process.stdout.write("\n");
+    }
+
+    // Options
+    for (let vi = 0; vi < maxVisible; vi++) {
+      const localIdx = scrollOffset + vi;
+      clearLine();
+      if (localIdx < groupLen) {
+        const globalIdx = group.indices[localIdx];
+        const isCur = localIdx === cursor;
+        const isSel = selected.has(globalIdx);
         const prefix = isCur ? cyan("  \u25b8 ") : "    ";
         const check = isSel ? green("\u25cf") : dim("\u25cb");
-        const label = isCur ? bold(options[i].label) : options[i].label;
-        const hint = options[i].hint ? dim(` ${options[i].hint}`) : "";
+        const label = isCur ? bold(options[globalIdx].label) : options[globalIdx].label;
+        const hint = options[globalIdx].hint ? dim(` ${options[globalIdx].hint}`) : "";
         process.stdout.write(`${prefix}${check} ${label}${hint}\n`);
       } else {
         process.stdout.write("\n");
       }
     }
 
+    // Hint
     clearLine();
     const count = selected.size;
-    const countStr =
-      count > 0 ? green(` ${count} selectionne(s)`) : "";
-    const navHint = hasGroups
-      ? dim("  \u2190\u2192 jour  \u2191\u2193 cours  espace selectionner  a tout  \u21b5 confirmer")
+    const countStr = count > 0 ? green(`  ${count} sel.`) : "";
+    const nav = hasGroups
+      ? dim("  \u2190\u2192 jour  \u2191\u2193 cours  espace sel.  a jour  \u21b5 ok")
       : dim("  \u2191\u2193 naviguer  espace selectionner  a tout  \u21b5 confirmer");
-    process.stdout.write(`${navHint}${countStr}\n`);
+    process.stdout.write(`${nav}${countStr}\n`);
     rendered = true;
   };
+
+  // Message (printed once, above render area)
+  const messageLines = 2; // blank + message
+  console.log();
+  console.log(bold(`  ${message}`));
 
   return new Promise((resolve) => {
     const stdin = process.stdin;
     stdin.setRawMode!(true);
     stdin.resume();
     stdin.setEncoding("utf8");
-    _hideCursorTracked();
+    trackHideCursor();
 
-    console.log();
-    console.log(bold(`  ${message}`));
-    console.log();
     render();
 
     const onData = (key: string) => {
+      const group = groups[groupIdx];
+      const groupLen = group.indices.length;
+
       if (key === "\x1b[A" || key === "k") {
-        cursor = (cursor - 1 + options.length) % options.length;
+        cursor = (cursor - 1 + groupLen) % groupLen;
       } else if (key === "\x1b[B" || key === "j") {
-        cursor = (cursor + 1) % options.length;
-      } else if (key === "\x1b[C") {
-        // Right arrow → next group
-        const nextGroup = groupStarts.find((s) => s > cursor);
-        cursor = nextGroup ?? groupStarts[0] ?? cursor;
-      } else if (key === "\x1b[D") {
-        // Left arrow → previous group
-        let prev = groupStarts[0] ?? 0;
-        for (const s of groupStarts) {
-          if (s >= cursor) break;
-          prev = s;
+        cursor = (cursor + 1) % groupLen;
+      } else if (key === "\x1b[C" && hasGroups) {
+        if (groupIdx < groups.length - 1) {
+          groupIdx++;
+          cursor = 0;
+          scrollOffset = 0;
         }
-        cursor = prev;
+      } else if (key === "\x1b[D" && hasGroups) {
+        if (groupIdx > 0) {
+          groupIdx--;
+          cursor = 0;
+          scrollOffset = 0;
+        }
       } else if (key === " ") {
-        if (selected.has(cursor)) selected.delete(cursor);
-        else selected.add(cursor);
+        const globalIdx = group.indices[cursor];
+        if (selected.has(globalIdx)) selected.delete(globalIdx);
+        else selected.add(globalIdx);
       } else if (key === "a") {
-        if (selected.size === options.length) selected.clear();
-        else options.forEach((_, i) => selected.add(i));
+        // Toggle all in current day
+        const indices = hasGroups ? group.indices : options.map((_, i) => i);
+        const allSel = indices.every((i) => selected.has(i));
+        if (allSel) indices.forEach((i) => selected.delete(i));
+        else indices.forEach((i) => selected.add(i));
       } else if (key === "\r" || key === "\n") {
         stdin.setRawMode!(false);
         stdin.pause();
         stdin.removeListener("data", onData);
         showCursor();
-        // Clear the interactive UI: message + blank + maxVisible options + hint = maxVisible + 3
-        moveUp(maxVisible + 3);
+        // Clear entire UI
+        moveUp(renderLines + messageLines);
         eraseBelow();
-        // Print summary
+        // Summary
         const sel = options.filter((_, i) => selected.has(i));
         if (sel.length > 0) {
-          const summary = sel.map((o) => o.label.trim()).join(", ");
-          console.log(
-            `  ${green("\u2713")} ${bold(`${sel.length} cours selectionne(s)`)}${dim(` — ${summary}`)}`
-          );
+          console.log(`  ${green("\u2713")} ${bold(`${sel.length} cours selectionne(s)`)}`);
         } else {
           console.log(`  ${yellow("\u2013")} Aucun cours selectionne`);
         }
@@ -218,10 +255,15 @@ export function multiSelect<T>(opts: {
   });
 }
 
-export function spinner(message: string): { stop: (finalMessage?: string) => void } {
-  const frames = ["\u280b", "\u2819", "\u2839", "\u2838", "\u283c", "\u2834", "\u2826", "\u2827", "\u2807", "\u280f"];
+export function spinner(
+  message: string
+): { stop: (finalMessage?: string) => void } {
+  const frames = [
+    "\u280b", "\u2819", "\u2839", "\u2838", "\u283c",
+    "\u2834", "\u2826", "\u2827", "\u2807", "\u280f",
+  ];
   let i = 0;
-  _hideCursorTracked();
+  trackHideCursor();
   const interval = setInterval(() => {
     clearLine();
     process.stdout.write(`  ${cyan(frames[i % frames.length])} ${message}`);
