@@ -2,7 +2,7 @@
 
 ## Project overview
 
-OctivSniper auto-books CrossFit classes on Octiv Fitness (CrossFit Myrmica) the instant the booking window opens. Classes open 4 days before at the class end time. The app pre-fetches class IDs, starts attempts 30s early, and retries aggressively.
+OctivSniper auto-books classes on any gym using the Octiv Fitness platform the instant the booking window opens. Classes typically open a configurable number of days before at the class end time. The app pre-fetches class IDs, starts attempts 30s early, and retries aggressively. Compatible with any Octiv Fitness tenant (CrossFit, yoga, HIIT, etc.).
 
 ## Stack
 

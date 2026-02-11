@@ -1,10 +1,12 @@
 # OctivSniper
 
-Auto-booking pour Octiv Fitness (CrossFit Myrmica). Reserve automatiquement tes cours de CrossFit des que la fenetre de reservation s'ouvre.
+Auto-booking pour les salles utilisant [Octiv Fitness](https://www.octivfitness.com). Reserve automatiquement tes cours des que la fenetre de reservation s'ouvre.
+
+Compatible avec toute salle (CrossFit, yoga, HIIT...) qui utilise la plateforme Octiv Fitness pour ses reservations.
 
 ## Probleme
 
-Les cours populaires (WOD) se remplissent en quelques minutes apres l'ouverture des reservations. La fenetre ouvre **4 jours avant le cours a l'heure de fin** (ex: cours dimanche 9h45-10h45 → ouvre mercredi a 10h45).
+Les cours populaires se remplissent en quelques minutes apres l'ouverture des reservations. La fenetre ouvre typiquement **quelques jours avant le cours a l'heure de fin** (ex: cours dimanche 9h45-10h45, ouverture 4 jours avant → ouvre mercredi a 10h45). Le delai est configurable.
 
 ## Solution
 
@@ -116,9 +118,9 @@ Le fichier `config.json` (cree automatiquement, gitignore) :
   "auth": {
     "email": "...",
     "jwt": "...",
-    "userId": 828741,
-    "tenantId": 102360,
-    "locationId": 2041
+    "userId": 0,
+    "tenantId": 0,
+    "locationId": 0
   },
   "advanceBookingDays": 4,
   "slots": [
