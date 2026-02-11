@@ -103,7 +103,7 @@ Le fichier `config.json` (cree automatiquement, gitignore) :
     { "day": "monday", "time": "07:00", "className": "WOD" }
   ],
   "retryIntervalMs": 100,
-  "maxRetries": 120
+  "maxRetries": 600
 }
 ```
 
@@ -111,7 +111,7 @@ Le fichier `config.json` (cree automatiquement, gitignore) :
 |-----------|-------------|---------|
 | `advanceBookingDays` | Jours d'avance pour l'ouverture | `4` |
 | `retryIntervalMs` | Intervalle entre les tentatives (ms) | `100` |
-| `maxRetries` | Nombre max de tentatives | `120` |
+| `maxRetries` | Nombre max de tentatives | `600` |
 
 ## Stack
 

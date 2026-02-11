@@ -86,7 +86,7 @@ Required headers: `Authorization: Bearer <JWT>`, `X-CamelCase: true`, `Accept: a
   "advanceBookingDays": 4,
   "slots": [{ "day": "monday", "time": "07:00", "className": "WOD" }],
   "retryIntervalMs": 100,
-  "maxRetries": 120
+  "maxRetries": 600
 }
 ```
 
