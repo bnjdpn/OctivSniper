@@ -148,12 +148,14 @@ async function attemptBooking(
       const isTooEarly = msg.includes("advance") || msg.includes("early") || msg.includes("not yet") || msg.includes("far");
 
       if (isTooEarly) {
-        // Too early — does NOT count against maxRetries, spam immediately
+        // Too early — does NOT count against maxRetries
         // Keep prefetchedClass — classId doesn't change, skip the extra GET
+        // Throttle to avoid 429 rate-limit before window opens
         earlyAttempts++;
         if (earlyAttempts % 50 === 0) {
           log(`Waiting for window to open... (${earlyAttempts} early attempts)`);
         }
+        await Bun.sleep(250);
       } else if (msg.includes("full") || msg.includes("limit") || msg.includes("complet")) {
         realAttempts++;
         log(`Attempt ${realAttempts}/${config.maxRetries}: Full — ${msg}`);
